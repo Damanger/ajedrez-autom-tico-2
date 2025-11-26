@@ -59,6 +59,7 @@ def main():
     tracker = HandTracker()
     dragging = False
     start_sq = None
+    last_sq = None  # Última casilla válida mientras estamos "pellizcando"
     
     print("Sistema de Visión Iniciado. Esperando conexión...")
 
@@ -84,19 +85,23 @@ def main():
             
             # Distancia euclidiana
             length = np.hypot(x8 - x4, y8 - y4)
-            
             current_sq = get_square(cx, cy, w, h)
+            is_pinching = length < 40
             
-            # Umbral de activación
-            if length < 40: 
+            if is_pinching:
+                # Mantiene la "pieza" levantada mientras los dedos están juntos.
                 cv2.circle(img, (cx, cy), 15, (0, 255, 0), cv2.FILLED)
-                if not dragging:
+                if not dragging and current_sq:
                     dragging = True
                     start_sq = current_sq
+                    last_sq = current_sq
+                elif dragging and current_sq:
+                    # Actualizamos la última casilla válida visitada durante el pellizco.
+                    last_sq = current_sq
             else:
-                if dragging: # Evento "Soltar" (MouseUp)
+                if dragging:  # Evento "Soltar" (MouseUp)
                     dragging = False
-                    end_sq = current_sq
+                    end_sq = last_sq if last_sq else current_sq
                     if start_sq and end_sq and start_sq != end_sq:
                         move_uci = f"{start_sq}{end_sq}"
                         # Lógica de promoción simple (siempre dama si es peón en última fila)
@@ -104,6 +109,7 @@ def main():
                         send_move_to_haskell(move_uci)
                         time.sleep(0.5) # Debounce para evitar dobles envíos
                     start_sq = None
+                    last_sq = None
 
             if current_sq:
                 cv2.putText(img, f"Pos: {current_sq}", (10, h - 20), 
